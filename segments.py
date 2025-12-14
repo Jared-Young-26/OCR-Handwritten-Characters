@@ -3,58 +3,76 @@ import numpy as np
 import scipy.ndimage as ndimage
 
 def preprocess_canvas_to_mnist(canvas_img, mode="digit", input_type="canvas"):
+    """
+    Converts a raw canvas image or pre-cropped glyph into an MNIST/EMNIST-style
+    28×28 normalized image suitable for classification.
+
+    This function intentionally separates:
+    - noise-heavy canvas input
+    - already-cropped glyph input
+
+    so that cleaning operations are not applied twice.
+    """
 
     # --------------------------------------------------
-    # 1. Convert to grayscale
+    # 1. Convert input to grayscale
+    #    (handles RGB, RGBA, and already-grayscale inputs)
     # --------------------------------------------------
     if len(canvas_img.shape) == 3:
         if canvas_img.shape[2] == 4:
+            # Drop alpha channel if present
             canvas_img = cv2.cvtColor(canvas_img, cv2.COLOR_RGBA2RGB)
         gray = cv2.cvtColor(canvas_img, cv2.COLOR_RGB2GRAY)
     else:
         gray = canvas_img.copy()
 
     # --------------------------------------------------
-    # 2. Invert if background is white
+    # 2. Normalize foreground polarity
+    #    Canvas drawings are black-on-white; MNIST expects white-on-black
     # --------------------------------------------------
     if np.mean(gray) > 127:
         gray = 255 - gray
 
     # --------------------------------------------------
-    # 3. Ensure uint8 for OpenCV
+    # 3. Ensure uint8 format for OpenCV operations
     # --------------------------------------------------
     if gray.dtype != np.uint8:
         gray = (gray * 255).clip(0, 255).astype(np.uint8)
 
     # --------------------------------------------------
-    # 4. Otsu threshold
+    # 4. Foreground isolation
+    #    Canvas input requires full cleanup; glyph input does not
     # --------------------------------------------------
     if input_type == "canvas":
-        # Full cleanup pipeline
+        # Otsu threshold removes background and stabilizes stroke width
         _, thresh = cv2.threshold(
             gray, 0, 255,
             cv2.THRESH_BINARY + cv2.THRESH_OTSU
         )
 
+        # Morphological opening removes small noise artifacts
         kernel = np.ones((3, 3), np.uint8)
         thresh = cv2.morphologyEx(thresh, cv2.MORPH_OPEN, kernel)
 
+        # Compute bounding box around non-zero ink pixels
         coords = cv2.findNonZero(thresh)
         if coords is None:
+            # Empty canvas → return blank MNIST image
             return np.zeros((28, 28), dtype=np.float32)
 
         x, y, w, h = cv2.boundingRect(coords)
         digit = thresh[y:y+h, x:x+w]
+
     else:
-        # Glyph already cropped — JUST binarize gently
+        # Glyph is already cropped — only binarize
         _, digit = cv2.threshold(
             gray, 0, 255,
             cv2.THRESH_BINARY
         )
 
-
     # --------------------------------------------------
-    # 7. Resize to MNIST inner box
+    # 5. Aspect-ratio preserving resize
+    #    MNIST digits occupy ~20×20 within a 28×28 canvas
     # --------------------------------------------------
     target = 20
     h_, w_ = digit.shape
@@ -69,7 +87,7 @@ def preprocess_canvas_to_mnist(canvas_img, mode="digit", input_type="canvas"):
     digit = cv2.resize(digit, (new_w, new_h), interpolation=cv2.INTER_AREA)
 
     # --------------------------------------------------
-    # 8. Pad to 28×28
+    # 6. Zero-pad resized glyph into 28×28 canvas
     # --------------------------------------------------
     img28 = np.zeros((28, 28), dtype=np.uint8)
     y0 = (28 - new_h) // 2
@@ -77,19 +95,21 @@ def preprocess_canvas_to_mnist(canvas_img, mode="digit", input_type="canvas"):
     img28[y0:y0+new_h, x0:x0+new_w] = digit
 
     # --------------------------------------------------
-    # 9. Normalize
+    # 7. Normalize to [0, 1] float32
     # --------------------------------------------------
     img28 = img28.astype(np.float32) / 255.0
 
     # --------------------------------------------------
-    # 10. EMNIST orientation FIRST
+    # 8. EMNIST orientation correction
+    #    EMNIST letters are rotated/flipped relative to MNIST digits
     # --------------------------------------------------
     if mode == "letter":
         img28 = np.rot90(img28, -1)
         img28 = np.fliplr(img28)
 
     # --------------------------------------------------
-    # 11. Center-of-mass (AFTER orientation)
+    # 9. Center glyph using center-of-mass
+    #    This mimics MNIST dataset normalization
     # --------------------------------------------------
     cy, cx = ndimage.center_of_mass(img28)
     if not np.isnan(cx):
@@ -98,7 +118,8 @@ def preprocess_canvas_to_mnist(canvas_img, mode="digit", input_type="canvas"):
         img28 = np.roll(img28, (shift_y, shift_x), axis=(0, 1))
 
     # --------------------------------------------------
-    # 12. Optional stroke normalization for letters
+    # 10. Stroke normalization (letters only)
+    #     Compensates for thinner EMNIST strokes
     # --------------------------------------------------
     if mode == "letter":
         kernel = np.ones((2, 2), np.uint8)
@@ -106,6 +127,7 @@ def preprocess_canvas_to_mnist(canvas_img, mode="digit", input_type="canvas"):
         img28 = img28.astype(np.float32) / 255.0
 
     return img28
+
 
 
 def compute_edges(image, threshold=0.001):
