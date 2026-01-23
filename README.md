@@ -1,192 +1,206 @@
-# AI-Final-Convolutional-Neural-Network
+# Handwritten Character Recognition with Manual Neural Networks
 
-Write a neural network program to recognize the handwritten digits / alphabets by dividing
-the characters as a set of edge segments and inputting the segments for classification
+This project explores handwritten character recognition through a deliberately low-level approach to neural networks. Instead of relying on high-level deep learning frameworks for the core model, a feed-forward neural network is implemented almost entirely from scratch using NumPy and trained on handcrafted edge-segment features derived from MNIST images.
+
+To contextualize the results, a standard convolutional neural network (CNN) implemented in TensorFlow is included as a comparison baseline. An interactive Streamlit application ties both models together, allowing real-time visualization and experimentation.
+
+![digit recognition](archive/digit.png)
+
+---
 
 ## Motivation
 
-While convolutional neural networks are relativly well understood at a high level, and much of the research is in low level implementation details such as hardware or underlying algorithms generally abstracted away from users, as when most people think about convolutional or neural networks in general, thoughts usally go to PyTorch or Tensorflow or other such libraries. However, there is still much insight to be gained to be gained from understanding how they work at a higher level and trying to implement them without these higher level libraries as to really understand how they work it helps to delve right in the deep end. Aside from that, to understand why convolultional neural networks are used, it would be helpful to compare them to a traditional neural networks to compare the pros on cons of each one and see difference results each produces. This way metrics like accuracy, and resources like time and computational power can be compared.
+Modern deep learning frameworks such as TensorFlow and PyTorch abstract away much of the complexity involved in training neural networks. While this abstraction is powerful, it can obscure *why* convolutional neural networks work so well and *what problems they solve compared to traditional architectures*.
 
-The goal of this project was to reverse that dynamic:
-build a neural network almost entirely from scratch, train it on MNIST using hand-designed edge-segment features, and compare its behavior, limitations, and performance to a standard convolutional neural network (CNN).
+The goal of this project was to reverse that dynamic by:
 
-This forced a hands-on engagement with every part of the learning pipeline:
- * feature engineering
- * activation stability
- * weight initialization
- * softmax + cross-entropy math
- * backpropagation
- * debugging exploding/vanishing gradients
- * tensor shape mismatches
- * mini-batch training
- * normalization and scaling
- * architectural choices and hyperparameters
- * model serialization
+* Implementing a neural network **from first principles**
+* Using **hand-engineered features** instead of learned convolutions
+* Observing training instability, accuracy limits, and failure modes firsthand
+* Comparing these results directly against a modern CNN
 
-A TensorFlow CNN was also implemented—not as the “main model,” but as a scientific baseline to show how much automatic optimization modern frameworks handle under the hood.
+Rather than optimizing for accuracy alone, the focus was on understanding:
 
-## Project Description
+* feature engineering tradeoffs
+* gradient behavior
+* activation function dynamics
+* architectural limitations
+* why CNNs outperform traditional ANNs on image data
 
-This project implements two complete classification pipelines:
+---
 
-### 1. Custom Manual Neural Network (ANN)
-A feed-forward neural network implemented entirely using NumPy, including:
- * Custom activation functions (ReLU, tanh, sigmoid)
- * Manually implemented backpropagation
- * Softmax output with cross-entropy loss
- * Mini-batch gradient descent
- * Standardization of inputs for stable training
- * Custom weight initialization (Xavier/Glorot uniform)
- * Saving + loading model parameters (np.savez)
- * Debugging instrumentation (weight means, stds, activations)
- * Full documentation of every function and line-by-line explanation
+## Project Overview
 
-This ANN is intentionally feature-dependent: it does not receive raw pixel values.
-Instead, it uses a handcrafted feature extraction pipeline.
+The project consists of **two complete classification pipelines** and an interactive front end.
+
+### 1. Manual Feed-Forward Neural Network (ANN)
+
+A fully custom neural network implemented using NumPy, including:
+
+* Forward propagation and backpropagation implemented by hand
+* ReLU, tanh, and sigmoid activation functions
+* Softmax output with cross-entropy loss
+* Mini-batch gradient descent
+* Xavier (Glorot) weight initialization
+* Input standardization for training stability
+* Model checkpointing via NumPy serialization
+* Debugging instrumentation for activations and gradients
+
+The ANN does **not** receive raw pixel data. Instead, it operates exclusively on handcrafted feature vectors.
+
+---
 
 ### 2. Edge-Segment Feature Extraction
 
-Because the assignment required classification based on edge-segments, the project includes a custom feature engineering module that:
- 1. Computes Sobel edges on a 28×28 MNIST digit
- 2. Divides the image into an N×N grid (e.g., 8×8 → 64 segments)
- 3. Calculates edge density inside each segment
- 4. Produces a fixed-length feature vector (16, 32, 64 dims depending on grid size)
+To meet the project constraints, image classification is performed using edge-based features rather than raw pixels.
 
-These extracted features become the ANN’s input vector.
+The feature extraction pipeline:
 
-This allowed experimentation with:
- * different grid resolutions
- * thresholding strategies
- * impact of sparse vs dense feature vectors
- * failure modes when features collapse to zero
+1. Computes Sobel edges on 28×28 MNIST images
+2. Divides the image into an N×N grid (e.g., 8×8)
+3. Computes edge density within each segment
+4. Produces a fixed-length feature vector (16–64 dimensions)
+
+This enabled experimentation with:
+
+* grid resolution vs. information loss
+* sparse vs. dense feature vectors
+* thresholding sensitivity
+* failure modes when features collapse
+
+---
 
 ### 3. TensorFlow CNN (Comparison Model)
 
-A compact but high-quality CNN was built using TensorFlow/Keras to:
- * benchmark accuracy
- * show the difference between learned feature extraction vs manually engineered ones
- * demonstrate modern training conveniences (dropout, ReLU stacks, pooling)
+A compact convolutional neural network implemented using TensorFlow/Keras serves as a performance and design baseline.
 
-As expected, the CNN reaches ~98.8–99% accuracy on MNIST, easily outperforming the ANN—
-but the project’s goal wasn't to “beat” TensorFlow, but to understand why.
+The CNN:
 
-### 4. Streamlit Interactive Application
+* Operates directly on raw pixel values
+* Learns convolutional filters end-to-end
+* Uses modern best practices (ReLU, pooling, dropout)
+* Achieves near-state-of-the-art MNIST accuracy
 
-A fully functional front-end was created using Streamlit:
- * Users draw a digit on a live canvas
- * The drawing is preprocessed → 28×28 grayscale
- * Sobel edges and grid segmentation are computed live
- * Feature vector is displayed as a bar plot
- * Predictions from both models (ANN and CNN) are shown side-by-side
- * Visualizations mirror the analysis done in master.py
+The CNN is not the “primary” model; it exists to illustrate how much complexity modern frameworks manage automatically.
 
-This turns the entire project into an interactive, visually intuitive exploration tool.
+---
 
-## Project Design
+### 4. Interactive Streamlit Application
 
-The project is divided into modular components:
+A Streamlit application provides a visual, interactive interface to the project:
 
- * ann.py
-    Fully documented manual neural network implementation.
+* Users draw digits on a canvas
+* Images are resized and normalized in real time
+* Edge-segment features are computed live
+* Feature vectors are visualized
+* Predictions from both ANN and CNN are displayed side-by-side
 
- * segments.py / extra.py
-    Edge detection, grid segmentation, feature extraction.
+This transforms the project from a static experiment into an exploratory tool for understanding model behavior.
 
- * master.py
-    Full training pipeline, dataset loading, ANN training, CNN training, visualization utilities.
+![handwritten word recognition](archive/word.png)
 
- * app.py
-    Streamlit interface for interactive digit recognition.
+---
 
- * Saved model artifacts
-    - custom_ann_model.npz
-    - tf_cnn_model.keras
+## Project Structure
 
-The modular design allowed rapid experimentation across:
- * activations (sigmoid → tanh → ReLU)
- * feature vector sizes (16 → 32 → 64)
- * learning rate schedules
- * normalization approaches
- * standardization vs raw features
- * batch sizes
- * random initialization stability
+```
+.
+├── ann.py                # Manual ANN implementation
+├── segments.py / extra.py # Edge detection & feature extraction
+├── master.py             # Training, evaluation, visualization
+├── app.py                # Streamlit interface
+│   custom_ann_model.npz
+│   tf_cnn_model.keras
+└── README.md
+```
 
-## Struggles
+The modular design enabled rapid experimentation with:
 
-1. Figuring out how to apply multiple convolutional filters to change the number of channels
+* activation functions
+* feature vector sizes
+* learning rates
+* normalization strategies
+* batch sizes
+* initialization methods
 
-2. How to apply backpropagation to update the learnable filters
+---
 
-3. Feature vectors collapsing to zero
+## Key Challenges & Lessons Learned
 
-Many drawn digits produced feature vectors like [0, 0, 0, ...], crippling the ANN.
-This led to:
- * modifying Sobel thresholds
- * tuning grid sizes
- * inspecting segment densities through visualization
- * discovering that CNNs bypass this issue because they learn features end-to-end
+### Feature Collapse
 
-4. Activation function problems
+Many handwritten digits initially produced near-zero feature vectors, rendering the ANN ineffective. This required:
 
-Sigmoid saturated immediately.
-Tanh performed better but still compressed gradients.
-ReLU improved training but produced dead neurons unless inputs were standardized.
+* adjusting Sobel thresholds
+* tuning grid resolution
+* visualizing segment densities
+* recognizing the inherent fragility of handcrafted features
 
-This directly reinforced the design principles behind CNNs.
+CNNs bypass this entirely by learning features automatically.
 
-5. Gradient instability
+---
 
-Without:
- * standardization
- * Xavier initialization
- * mini-batch training
+### Activation Function Behavior
 
-…the network diverged or flattened.
-Correcting these manually produced a working ANN with ~30% accuracy—
-a massive improvement over the initial ~9%.
+* Sigmoid saturated almost immediately
+* Tanh improved stability but still compressed gradients
+* ReLU provided the best results but introduced dead neurons without standardization
 
-6. Understanding TensorFlow magic
+These issues reinforced the importance of preprocessing and initialization.
 
-Seeing the contrast between the manual ANN (30% accuracy with engineered features)
-and the CNN (~99% accuracy with raw pixels) highlighted:
- * why learned convolutional filters outperform hand-designed features
- * how deep architectures learn abstractions
- * the power of optimized backprop and weight initialization
- * how regularization (dropout, pooling) stabilizes learning
+---
+
+### Gradient Instability
+
+Without proper standardization, initialization, and mini-batch training, the network diverged or stagnated. Correcting these manually improved accuracy from ~9% to ~30%, demonstrating both the power and limits of shallow ANNs with engineered features.
+
+---
+
+### Understanding “Framework Magic”
+
+The stark contrast between:
+
+* a ~30% accurate manual ANN
+* a ~99% accurate CNN
+
+highlighted why convolutional architectures dominate vision tasks and how much optimization modern frameworks handle behind the scenes.
+
+---
 
 ## Results
 
-| Model                  | Input Type                       | Train Accuracy | Test Accuracy  |
-| ---------------------- | -------------------------------- | -------------- | -------------- |
-| **Manual ANN (NumPy)** | 64-segment edge density features | ~30%           | ~29–30%        |
-| **TensorFlow CNN**     | raw pixels                       | ~97–98% train  | ~98.8–99% test |
+| Model              | Input Type                      | Train Accuracy | Test Accuracy |
+| ------------------ | ------------------------------- | -------------- | ------------- |
+| Manual ANN (NumPy) | Edge-segment features (64 dims) | ~30%           | ~29–30%       |
+| TensorFlow CNN     | Raw pixels                      | ~97–98%        | ~98.8–99%     |
 
+---
 
-## Questions or Discussion for Future Work
+## Future Work
 
- * Implement learnable convolution filters by hand (true manual CNN)
+* Implement a true manual CNN with learnable filters
+* Add momentum or Adam optimization to the ANN
+* Explore alternative feature extraction (HOG, Canny, Gabor)
+* Extend to EMNIST letters (A–Z)
+* Add confusion matrices and saliency visualizations
+* Expand analysis using Streamlit visual explanations
 
- * Add momentum / Adam optimizer to the ANN
+---
 
- * Experiment with alternative feature engineering (HOG, Canny edges, Gabor filters)
-
- * Support letters (A–Z) using EMNIST dataset
-
- * Expand final project paper with visual explanations from Streamlit
-
- * Add confusion matrices and saliency maps for interpretability
-
- * Try deeper ANNs with wider feature sets to observe diminishing returns
-
-## References
-
-1. https://en.wikipedia.org/wiki/Convolutional_neural_network
-
-2. https://medium.com/advanced-deep-learning/cnn-operation-with-2-kernels-resulting-in-2-feature-mapsunderstanding-the-convolutional-filter-c4aad26cf32
-
-3. https://www.geeksforgeeks.org/computer-vision/backpropagation-in-convolutional-neural-networks/
-
-### Setup
+## Setup
 
 ```bash
 pip install -r requirements.txt
+```
+
+```bash
+streamlit run app.py
+```
+
+---
+
+## References
+
+* [https://en.wikipedia.org/wiki/Convolutional_neural_network](https://en.wikipedia.org/wiki/Convolutional_neural_network)
+* [https://medium.com/advanced-deep-learning/cnn-operation-with-2-kernels-resulting-in-2-feature-mapsunderstanding-the-convolutional-filter-c4aad26cf32](https://medium.com/advanced-deep-learning/cnn-operation-with-2-kernels-resulting-in-2-feature-mapsunderstanding-the-convolutional-filter-c4aad26cf32)
+* [https://www.geeksforgeeks.org/computer-vision/backpropagation-in-convolutional-neural-networks/](https://www.geeksforgeeks.org/computer-vision/backpropagation-in-convolutional-neural-networks/)
